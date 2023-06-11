@@ -5,6 +5,7 @@ from datetime import date, timedelta, datetime
 
 csv_path = 'tsa_market/data/tsa_checkins.csv'
 
+
 def create_tsa_data():
     """Creates a pandas data frame for tsa checkin. Will always be missing day before yesterday's data"""
 
@@ -100,4 +101,4 @@ def _get_tsa_df():
 
 
 if __name__ == '__main__':
-    update()
+    create_tsa_data()
