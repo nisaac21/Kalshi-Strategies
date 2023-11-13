@@ -101,4 +101,4 @@ def _get_tsa_df():
 
 
 if __name__ == '__main__':
-    create_tsa_data()
+    update()
