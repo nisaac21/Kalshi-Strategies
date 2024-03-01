@@ -6,98 +6,67 @@ from datetime import date, timedelta, datetime
 csv_path = 'tsa_market/data/tsa_checkins.csv'
 
 
-def create_tsa_data():
-    """Creates a pandas data frame for tsa checkin. Will always be missing day before yesterday's data"""
+csv_path = 'tsa_market/data/tsa_checkins.csv'
 
-    tsa_data = _get_tsa_df()
-
-    # Range of dates in the data
-    # tsa_data['Date'].iloc[-1][:-4] + headers[-1]
-
-    start_date = '1/1/' + tsa_data.columns[-1]
-    end_date = date.today() + timedelta(days=-2)
-    date_range = pd.date_range(start_date, end_date)[::-1]
-    # Yesterday's row is always missing
-    date_range = date_range.delete([1460, 1095, 729, 364])
-    # Remove leap year dates
-    dates = pd.DataFrame(date_range, columns=['Date'])
-    dates = dates.loc[~(dates['Date'].dt.month.eq(
-        2) & dates['Date'].dt.day.eq(29))]
-
-    # No longer have use for date column
-    tsa_data.drop(['Date'], axis=1, inplace=True)
-
-    # First blank on first column gives us index of 12/31 for last year
-    blank_row_index = tsa_data[tsa_data.iloc[:, 0] == ""].index[0]
-
-    checkins = pd.DataFrame()
-
-    for year in tsa_data.columns:
-        checkins = pd.concat([checkins,
-                              tsa_data[year][blank_row_index:],
-                              tsa_data[year][:blank_row_index]], ignore_index=True)
-
-    checkins = checkins[checkins.iloc[:, 0] != ""]
-    checkins.rename(columns={0: 'Checkins'}, inplace=True)
-    checkins.reset_index(drop=True, inplace=True)
-    dates.reset_index(drop=True, inplace=True)
-    checkins = pd.concat([dates, checkins], axis=1)
-
-    checkins.to_csv(
-        csv_path, index=False)
-
-    return checkins
-
-
-def update(filename=csv_path):
-    """Updates an already existing file"""
-    checkins = pd.read_csv(filename)
-
-    try:
-        start_date = datetime.strptime(
-            checkins['Date'].loc[0], '%m/%d/%Y') + timedelta(days=1)
-        end_date = date.today() + timedelta(days=-2)
-    except:
-        print("Data up to date")
-        return
-
-    tsa_data = _get_tsa_df()
-    year = tsa_data.columns[1]
-
-    unfinished_range = pd.date_range(start_date, end_date,)
-    for index in reversed(range(len(unfinished_range))):
-        checkins.loc[-1] = [tsa_data[tsa_data.columns[0]]
-                            [index], tsa_data[year][index]]
-        checkins.index = checkins.index + 1
-        checkins.sort_index(inplace=True)
-
-    print(checkins)
-    checkins.to_csv(
-        csv_path, index=False)
-
-
-def _get_tsa_df():
-    url = 'https://www.tsa.gov/travel/passenger-volumes'
-    # Render table
+def _get_tsa_df(year : int) -> pd.DataFrame:
+    """Returns the table as pandas DataFrame for corresponding year from offical TSA website"""
+    
+    ext = f"/{year}" if year else ''
+    
+    url = 'https://www.tsa.gov/travel/passenger-volumes' + ext
+    
+    df = pd.DataFrame(columns=['Date', 'Checkins'])
+    
     page = requests.get(url)
     soup = BeautifulSoup(page.content, 'html.parser')
     table = soup.find_all('table')[0]
-
-    headers = []
-
-    # Loop through available years, ignore data column
-    for header in table.find_all('th'):
-        title = header.text
-        headers.append(title)
-
-    df = pd.DataFrame(columns=headers)
-
+    
+    
     for row in table.find_all('tr')[1:]:
         row_data = row.find_all('td')
         entry = [td.text.replace(",", "").rstrip() for td in row_data]
-        df.loc[len(df)] = entry
+        df.loc[len(df)] = entry[:2]
+        
+    
+    if year: return df 
+    return df.iloc[::-1].reset_index(drop=True)
 
-    return df
+def create_tsa_data():
+    """Creates a pandas data frame for tsa checkin. Will always be missing day before yesterday's data"""
+    
+    checkins = pd.DataFrame(columns=['Date', 'Checkins'])
+
+    for year in list(range(2019, date.today().year)) + [None]:
+        
+        checkins = pd.concat([checkins, _get_tsa_df(year)], ignore_index=True, axis=0)
+    
+    checkins.to_csv(csv_path)
+    
+    return checkins
+    
+def update(filename : str =csv_path) -> pd.DataFrame:
+    """Updates an already existing file, only works if data from other years is complete, else that data will stay missing"""
+    checkins = pd.read_csv(filename, index_col=0)
+
+    start_date = datetime.strptime(
+        checkins['Date'].iloc[-1], '%m/%d/%Y')
+    end_date = date.today() + timedelta(days=-1)
+    
+    
+    if start_date.date() >= end_date:
+        print("Data up to date")
+        return
+     
+
+    tsa_data = _get_tsa_df(None)
+    tsa_data['Date'] = pd.to_datetime(tsa_data['Date'])
+    
+    missing_range = tsa_data[tsa_data['Date'] > start_date].copy()
+    missing_range['Date'] = missing_range['Date'].dt.strftime('%#m/%#d/%y')
+    
+    checkins = pd.concat([checkins, missing_range], ignore_index=True, axis=0)
+    checkins.to_csv(filename)
+    return checkins
 
 
 if __name__ == '__main__':
