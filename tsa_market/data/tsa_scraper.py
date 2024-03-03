@@ -70,4 +70,4 @@ def update(filename : str =csv_path) -> pd.DataFrame:
 
 
 if __name__ == '__main__':
-    update()
+    print(update())
