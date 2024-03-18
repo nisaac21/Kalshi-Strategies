@@ -62,7 +62,7 @@ def update(filename : str =csv_path) -> pd.DataFrame:
     tsa_data['Date'] = pd.to_datetime(tsa_data['Date'])
     
     missing_range = tsa_data[tsa_data['Date'] > start_date].copy()
-    missing_range['Date'] = missing_range['Date'].dt.strftime('%#m/%#d/%y')
+    missing_range['Date'] = missing_range['Date'].dt.strftime('%#m/%#d/%Y')
     
     checkins = pd.concat([checkins, missing_range], ignore_index=True, axis=0)
     checkins.to_csv(filename)
